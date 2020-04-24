@@ -13,20 +13,20 @@ Just major developments
 ## Code & documentation
 This repository includes the following Jupyter Notebooks:
 
-**[Server Setup](https://github.com/jcpayne/aerial_survey_ai/server_setup.ipynb)**
+**[Server Setup](https://github.com/jcpayne/aerial_survey_ai/blob/master/server_setup.ipynb)**
 - Setup of the Azure server we used, including deep learning libraries
 
-**[Data preparation workflow](https://github.com/jcpayne/aerial_survey_ai/data_preparation_workflow.ipynb)**
+**[Data preparation workflow](https://github.com/jcpayne/aerial_survey_ai/blob/master/data_preparation_workflow.ipynb)**
 - Image types and naming conventions
 - Migration of files from AWS to Azure
 - Creation of UUIDs and database for image security
 - Pre-processing of images to convert .NEF to .jpg and adjust contrast, resolution, size
 
-**[Data labeling](https://github.com/jcpayne/aerial_survey_ai/data_labeling.ipynb)**
+**[Data labeling](https://github.com/jcpayne/aerial_survey_ai/blob/master/data_labeling.ipynb)**
 - Labeling process in CVAT 
 - A record of decisions regarding image classes, etc.
 
-**[Object detection using AI](https://github.com/jcpayne/aerial_survey_ai)**
+**[Object detection using AI]** #(https://github.com/jcpayne/aerial_survey_ai/blob/master)**
 - Code for a "Faster R-CNN" model, using fastai2 for data loading and to control training
 - Potentially, Detectron2 models either with fastai2 wrapper or directly in PyTorch
 
