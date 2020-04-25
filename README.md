@@ -9,6 +9,9 @@ Background on the project (future paper intro).  This is but a small corner of t
 
 ## News/Updates
 Just major developments 
+4/17/2020 - Initial data migrated from AWS to Azure (/TA25; annotation file TA25-RKE-20191128A)
+4/22/2020 - Second annotation file added (TA25-RKE-20191201)
+4/24/2020 - fastai data loader working
 
 ## Code & documentation
 Code and documentation are presented in Jupyter Notebooks:
@@ -26,7 +29,7 @@ Code and documentation are presented in Jupyter Notebooks:
 - Labeling process in CVAT 
 - A record of decisions regarding image classes, etc.
 
-**[Object detection using AI]** #(https://github.com/jcpayne/aerial_survey_ai/blob/master/tanzania.ipynb)**
+**[Object detection using AI](https://github.com/jcpayne/aerial_survey_ai/blob/master/tanzania.ipynb)**
 - Code for a "Faster R-CNN" model, using fastai2 for data loading and to control training
 - Potentially, Detectron2 models either with fastai2 wrapper or directly in PyTorch
 
