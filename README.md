@@ -11,7 +11,7 @@ Background on the project (future paper intro).  This is but a small corner of t
 Just major developments 
 
 ## Code & documentation
-This repository includes the following Jupyter Notebooks:
+Code and documentation are presented in Jupyter Notebooks:
 
 **[Server Setup](https://github.com/jcpayne/aerial_survey_ai/blob/master/server_setup.ipynb)**
 - Setup of the Azure server we used, including deep learning libraries
@@ -26,19 +26,23 @@ This repository includes the following Jupyter Notebooks:
 - Labeling process in CVAT 
 - A record of decisions regarding image classes, etc.
 
-**[Object detection using AI]** #(https://github.com/jcpayne/aerial_survey_ai/blob/master)**
+**[Object detection using AI]** #(https://github.com/jcpayne/aerial_survey_ai/blob/master/tanzania.ipynb)**
 - Code for a "Faster R-CNN" model, using fastai2 for data loading and to control training
 - Potentially, Detectron2 models either with fastai2 wrapper or directly in PyTorch
 
-## Citations/Papers
+## References
 As needed
 
 ## Installation
-We could use nbdev to turn some of the notebooks into a Python package in one step, but much of the stuff won't be directly runnable.
+We could use nbdev to turn some of the notebooks into Python packages, but much of the code/docs won't be directly runnable.
 
 ## Contributors
 John Payne & Howard Frederick (links, etc.)
 
+## Citation
+Please cite this work as follows:
+...
+
 ## License
 - **Code** is open-source (...)
-- **Images**  Explain restrictions on images here
+- **Images**  Explain restrictions on image use here
