@@ -8,10 +8,10 @@ Our goal is to create an efficient workflow for analyzing images to detect wildl
 Background on the project (future paper intro).  This is but a small corner of the vast Frederick Empire...
 
 ## News/Updates
-Just major developments 
-4/17/2020 - Initial data migrated from AWS to Azure (/TA25; annotation file TA25-RKE-20191128A)
-4/22/2020 - Second annotation file added (TA25-RKE-20191201)
-4/24/2020 - fastai data loader working
+Just major developments
+* 4/17/2020 - Initial data migrated from AWS to Azure (/TA25; annotation file TA25-RKE-20191128A)
+* 4/22/2020 - Second annotation file added (TA25-RKE-20191201)
+* 4/24/2020 - fastai data loader working
 
 ## Code & documentation
 Code and documentation are presented in Jupyter Notebooks:
