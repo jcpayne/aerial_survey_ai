@@ -1,11 +1,13 @@
+![Elephant herd and aircraft shadow](_media/banner1.png)
+
 # aerial_survey_ai
 Code for object detection in aerial survey images
 
 ## Project Description
-Our goal is to create an efficient workflow for analyzing images to detect wildlife, livestock, people, and other objects of interest from a large set of aerial survey images collected by the Tanzanian Wildlife Service, using AI (deep learning CNN models).  The images have some restrictions on use, and we aim to design a workflow that is open-source, transparent, robust, and can be easily re-used or adapted, while respecting those restrictions.
+Our goal is to create an efficient workflow for analyzing images to detect wildlife, livestock, people, and other objects of interest from a large set of aerial survey images collected by the Tanzania Wildlife Research Institute, using AI (deep learning CNN models).  The images have some restrictions on use, and we aim to design a workflow that is open-source, transparent, robust, and can be easily re-used or adapted, while respecting those restrictions.
 
 ## Background (HF)
-Background on the project (future paper intro).  This is but a small corner of the vast Frederick Empire...
+The Tanzania Wildlife Research Institute wants to develop new methods for aerial survey in Africa. One of the more promising developments is the use of digital photography from the same aerial platforms (Cessnas) already in use for wildlife counts - the problem is that _analysing_ the photographs takes far longer than a traditional survey. It is hoped that ML will allow us to more rapidly process the images and make photographic counts viable.
 
 ## News/Updates
 Just major developments
@@ -36,6 +38,10 @@ Code and documentation are presented in Jupyter Notebooks:
 **[Object detection using AI](https://github.com/jcpayne/aerial_survey_ai/blob/master/tanzania.ipynb)**
 - Code for a "Faster R-CNN" model, using fastai2 for data loading and to control training
 - Potentially, Detectron2 models either with fastai2 wrapper or directly in PyTorch
+
+### RProject
+
+A `.RProj` file is present for the convenience of fiddling about in R with the various files. The `.gitingore` was also updated to ignore userdata / rdata stuff which would otherwise mess with the git structures (lots of invisible files) - what this means is that you should always re-run code to recreate your local environment if there have been changes (which is good practice anyway).
 
 ## References
 As needed
