@@ -1,3 +1,5 @@
+![Airplane shadow and elephant herd](_media/banner1)
+
 # aerial_survey_ai
 Code for object detection in aerial survey images
 
@@ -32,6 +34,10 @@ Code and documentation are presented in Jupyter Notebooks:
 **[Object detection using AI](https://github.com/jcpayne/aerial_survey_ai/blob/master/tanzania.ipynb)**
 - Code for a "Faster R-CNN" model, using fastai2 for data loading and to control training
 - Potentially, Detectron2 models either with fastai2 wrapper or directly in PyTorch
+
+### RProject
+
+A `.RProj` file is present for the convenience of fiddling about in R with the various files. The `.gitingore` was also updated to ignore userdata / rdata stuff which would otherwise mess with the git structures (lots of invisible files) - what this means is that you should always re-run code to recreate your local environment if there have been changes (which is good practice anyway).
 
 ## References
 As needed
