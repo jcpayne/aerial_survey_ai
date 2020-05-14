@@ -9,6 +9,7 @@ Background on the project (future paper intro).  This is but a small corner of t
 
 ## News/Updates
 Just major developments
+* 5/14/2020 - Image tiling package is working
 * 4/17/2020 - Initial data migrated from AWS to Azure (/TA25; annotation file TA25-RKE-20191128A)
 * 4/22/2020 - Second annotation file added (TA25-RKE-20191201)
 * 4/24/2020 - fastai data loader working
@@ -28,6 +29,9 @@ Code and documentation are presented in Jupyter Notebooks:
 **[Data labeling](https://github.com/jcpayne/aerial_survey_ai/blob/master/data_labeling.ipynb)**
 - Labeling process in CVAT 
 - A record of decisions regarding image classes, etc.
+
+**[Image tiling](https://github.com/jcpayne/aerial_survey_ai/blob/master/image_tiling.ipynb)**
+- A workflow for cutting large images and their bounding boxes into smaller tiles, padding the images as necessary, allowing overlap between tiles, and enabling the user to sample empty tiles.  
 
 **[Object detection using AI](https://github.com/jcpayne/aerial_survey_ai/blob/master/tanzania.ipynb)**
 - Code for a "Faster R-CNN" model, using fastai2 for data loading and to control training
