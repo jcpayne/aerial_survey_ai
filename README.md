@@ -1,4 +1,4 @@
-![Airplane shadow and elephant herd](_media/banner1)
+![Elephant herd and aircraft shadow](_media/banner1.png)
 
 # aerial_survey_ai
 Code for object detection in aerial survey images
