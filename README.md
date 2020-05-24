@@ -11,7 +11,8 @@ The Tanzania Wildlife Research Institute wants to develop new methods for aerial
 
 ## News/Updates
 Just major developments
-* 5/22/2020 - Have tiled everything annotated to date (3,073 tiles)
+
+* 5/23/2020 - Added code for handling bbox fragments.  Have tiled everything that has been annotated so far (2240 tiles)
 * 5/14/2020 - Image tiling package is working
 * 4/17/2020 - Initial data migrated from AWS to Azure (/TA25; annotation file TA25-RKE-20191128A)
 * 4/22/2020 - Second annotation file added (TA25-RKE-20191201)
