@@ -17,7 +17,7 @@ import random
 #from google.colab.patches import cv2_imshow
 from pathlib import Path
 from fvcore.common.file_io import PathManager
-from torch import randperm,load,nn
+from torch import randperm,load
 from IPython import display
 import PIL
 from sklearn import metrics
@@ -25,7 +25,6 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 import imgaug as ia
 from imgaug import augmenters as iaa
-from adabound import AdaBound
 
 # Import Detectron2 structures and functions
 from detectron2.config import get_cfg
@@ -33,20 +32,18 @@ from detectron2.structures import Boxes, BoxMode, pairwise_iou
 from detectron2.data import DatasetCatalog, MetadataCatalog, DatasetMapper,build_detection_test_loader
 from detectron2.data import detection_utils as utils
 from detectron2.data.build import build_detection_test_loader, build_detection_train_loader
-from detectron2.data.transforms import TransformGen
+from detectron2.data.transforms import Augmentation
 from fvcore.transforms.transform import (BlendTransform,NoOpTransform,Transform)
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.engine import DefaultPredictor, DefaultTrainer, default_argument_parser, default_setup, launch
 from detectron2.evaluation import DatasetEvaluators,COCOEvaluator, inference_on_dataset
 from detectron2.modeling.matcher import Matcher
-from detectron2.solver.build import *
-
 print("Trying tridentnet import")
 from tridentnet import add_tridentnet_config
-from azureml.core.run import Run
 print("All imports passed")
 
 def get_annotation_files(annotationpath):
+    """Returns full filepaths for .xml files in the annotationpath."""
     annotation_files = [str(x) for x in annotationpath.iterdir() if x.suffix == '.xml']
     return (annotation_files)
 
@@ -65,11 +62,15 @@ def count_classes(annotation_files):
 
 def load_voc_instances(rootdir: str, split: str,CLASS_NAMES):
     """
-    Load VOC annotations to Detectron2 format.
+    Load VOC annotations to Detectron2 format.  It takes filenames from train.txt or valid.txt and joins them to a root dir
+    to get filenames for annotation and image files.  It does not use the filename or path from the XML annotations.
+    From the XML annotation, the only things it uses are height, width, and objects (class, plus bndbox incl. coordinates).
+    Note: train.txt and valid.txt (in rootdir) contain image filenames (without extension or path).
+    Any classname not in CLASS_NAMES is renamed to "other_animal" inside the model.
     Args:
-        rootdir: Root directory, under which are subdirectories ontain "tiled_annotations", "tiled_images"
+        rootdir: Root directory, under which are "tiled_annotations" and "tiled_images" subdirectories
         split (str): one of "train", "valid"
-    Note: train.txt and valid.txt (in rootdir) contain image filenames (without extension or path)
+        CLASS_NAMES: a set of valid classnames
     """
     #Open the train.txt or valid.txt files
     with PathManager.open(os.path.join(rootdir, split + ".txt")) as f:
@@ -104,29 +105,6 @@ def load_voc_instances(rootdir: str, split: str,CLASS_NAMES):
         dicts.append(r)
     return dicts
 
-#Split filenames into train and validate sets (copied from fastai2)
-def split_by_random(o,valid_pct):
-    rand_idx = [int(i) for i in randperm(len(o))]
-    cut = int(valid_pct * len(o))
-    return rand_idx[cut:],rand_idx[:cut]
-
-def write_train_validate_files(rootdir,annotation_files,train_idxs,val_idxs):
-    """Writes two text files (training/validation) with filenames to the rootdirectory.
-       These define the training and validation data sets."""
-    trfile = open(str(rootdir/'train.txt'),'w')
-    for idx in train_idxs:
-        fname = Path(annotation_files[idx]).stem
-        trfile.write(fname)
-        trfile.write('\n')
-    trfile.close()
-    
-    valfile = open(str(rootdir/'valid.txt'),'w')
-    for idx in val_idxs:
-        fname = Path(annotation_files[idx]).stem
-        valfile.write(fname)
-        valfile.write('\n')
-    valfile.close()
-    
 def register_datasets(rootdir, CLASS_NAMES):
     #I modified this to pop a name from the _REGISTERED dict if it already exists    
     for d in ["train", "valid"]:
@@ -137,17 +115,17 @@ def register_datasets(rootdir, CLASS_NAMES):
         MetadataCatalog.get("survey_" + d).set(thing_classes=CLASS_NAMES)
     survey_metadata = MetadataCatalog.get("survey_train")
 
-# def setup(args):
-#     """
-#     Create configs and perform basic setups 
-#     """
-#     cfg = get_cfg()
-#     add_tridentnet_config(cfg) #Function is from tridentnet.config.py
-#     #cfg.merge_from_file(args.config_file) #optional
-#     #cfg.merge_from_list(args.opts) #optional
-#     cfg.freeze() #
-    
-#     return cfg
+def setup(args):
+    """
+    Create configs and perform basic setups 
+    """
+    cfg = get_cfg()
+    add_tridentnet_config(cfg) #Function is from tridentnet.config.py
+    #cfg.merge_from_file(args.config_file) #optional
+    #cfg.merge_from_list(args.opts) #optional
+    cfg.freeze() #where is this called??
+    default_setup(cfg, args) #where?
+    return cfg
     
 def setup_model_configuration(rootdir, output_dir, CLASS_NAMES):
     cfg = get_cfg()
@@ -161,11 +139,16 @@ def setup_model_configuration(rootdir, output_dir, CLASS_NAMES):
     #cfg.merge_from_file(args.config_file)
     #cfg.merge_from_list(args.opts) #this might work -- not tried
 
-    #OPTIONAL [WARNING!]  Specify model weights
-    #cfg.MODEL.WEIGHTS:"detectron2://ImageNetPretrained/MSRA/R-101.pkl" #original weights
-    #cfg.MODEL.WEIGHTS = str(Path(rootdir)/"model_final.pth") #This is in blobstore/temp directory
-    cfg.MODEL.WEIGHTS = str(Path(rootdir)/"model_final.pth")
+    #default_setup(cfg, args) #in detectron2/engine/defaults.py 
+    # default_setup performs some basic common setups at the beginning of a job, including:
+    #      1. Set up the detectron2 logger
+    #      2. Log basic information about environment, cmdline arguments, and config
+    #      3. Backup the config to the output directory
     
+    #OPTIONAL [WARNING!]  Specify model weights
+    #cfg.MODEL.WEIGHTS = Path(cfg.OUTPUT_DIR/"model_final.pth")
+    #cfg.MODEL.WEIGHTS:"detectron2://ImageNetPretrained/MSRA/R-101.pkl"
+    cfg.MODEL.WEIGHTS:"/data2/home/egdod/jdev/trident_project/outputs/model_final.pth" #Note this is not .outputs
     cfg.MODEL.MASK_ON: False
     cfg.MODEL.RESNETS.DEPTH: 101
     cfg.MODEL.ANCHOR_GENERATOR.SIZES = [[32, 64, 128, 256, 512]]
@@ -182,17 +165,17 @@ def setup_model_configuration(rootdir, output_dir, CLASS_NAMES):
     #cfg.SOLVER.STEPS: (60000, 80000) #for base model
     #cfg.SOLVER.MAX_ITER = 90000  
     cfg.LR_SCHEDULER='WarmupCosineLR'
-    cfg.SOLVER.STEPS: (7000, 8000) #(210000, 250000) for trident, also 16K,18K for 20K
-    cfg.SOLVER.MAX_ITER = 10000 #  270000 for trident
-    cfg.SOLVER.WARMUP_ITERS = 1000 #1000 is default
+    cfg.SOLVER.STEPS: (21000, 25000) #(210000, 250000) for trident
+    cfg.SOLVER.MAX_ITER = 27000 #  270000 for trident
+    cfg.SOLVER.WARMUP_ITERS = 2000 #1000 is default
     cfg.SOLVER.IMS_PER_BATCH: 16
-    cfg.SOLVER.BASE_LR: 0.01 #Is .001 in defaults.py.  It overflowed when I tried 0.02
+    cfg.SOLVER.BASE_LR: 0.0005 #Is .001 in defaults.py.  It overflowed when I tried 0.02
     cfg.SOLVER.CHECKPOINT_PERIOD = 500
     
-    #Pixel means are from 5724 500x500 tiles on Jul 16 2020 (train_dict)
+    #Pixel means are from 19261 500x500 tiles on Aug 15 2020 (train_dict)
     cfg.INPUT.FORMAT = "RGB"
-    cfg.MODEL.PIXEL_MEAN = [137.473, 139.769, 106.912] #default was [103.530, 116.280, 123.675]
-    cfg.MODEL.PIXEL_STD = [26.428, 22.083, 26.153]
+    cfg.MODEL.PIXEL_MEAN = [143.078, 140.690, 120.606] #first 5K batch was [137.473, 139.769, 106.912] #default was [103.530, 116.280, 123.675]
+    cfg.MODEL.PIXEL_STD = [34.139, 29.849, 31.695]#first 5k batch was [26.428, 22.083, 26.153]
     
     #Auugmentation: Add corruption to images with probability p
     cfg.INPUT.corruption = 0.1
@@ -209,9 +192,10 @@ def setup_model_configuration(rootdir, output_dir, CLASS_NAMES):
     cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS = False
 
     cfg.OUTPUT_DIR = output_dir
-      
+        
     #WARNING: #I think freeze() makes the config immutable; hence it must come last
     cfg.freeze() 
+    #default_setup(cfg, args) #Sets up loggers, but has a few settings that are a PITA.  Not needed.
 
     return cfg
 
@@ -224,13 +208,12 @@ def build_augmentation(cfg, is_train):
     if is_train:
         random_corruption = RandomCorruption(cfg.INPUT.corruption) #prob of adding corruption ([0,1])
         result.append(random_corruption)
-        print("Random corruption augmentation used in training")
 
         #logger.info("Random corruption augmentation used in training: " + str(random_corruption))
         print(result)
     return result
 
-class RandomCorruption(TransformGen):
+class RandomCorruption(Augmentation):
     """
     Randomly transforms image corruption using the 'imgaug' package 
     (which is only guaranteed to work for uint8 images).  
@@ -273,13 +256,14 @@ class TridentDatasetMapper(DatasetMapper):
     """
     A customized version of DatasetMapper.  
     A callable which takes a dataset dict in Detectron2 Dataset format,
-    and maps it into a format used by the model.
+    and map it into a format used by the model.
 
     """        
     #The only change I made is to switch build_augmentation for utils.build_augmentation
     @classmethod
     def from_config(cls, cfg, is_train: bool = True):
         augs = build_augmentation(cfg, is_train)
+        print("Augmentations:",augs)
         if cfg.INPUT.CROP.ENABLED and is_train:
             augs.insert(0, T.RandomCrop(cfg.INPUT.CROP.TYPE, cfg.INPUT.CROP.SIZE))
             recompute_boxes = cfg.MODEL.MASK_ON
@@ -310,7 +294,7 @@ class Trainer(DefaultTrainer):
     """Customized version of DefaultTrainer, which enables augmentation
         to be added via a custom DatasetMapper
     """
-    #For testing, we don't use augmentation (but see detectron2/tools/train_net.py to add test-time augmentation)
+    #For testing, we don't use augmentation (but see detectron2/tools/train_net.py for test-time augmentation)
     @classmethod
     def build_test_loader(cls, cfg, dataset_name):
         return build_detection_test_loader(cfg, dataset_name, mapper=DatasetMapper(cfg,False))
@@ -320,86 +304,32 @@ class Trainer(DefaultTrainer):
     def build_train_loader(cls, cfg):
         return build_detection_train_loader(cfg, mapper=TridentDatasetMapper(cfg, True))
     
-    #Add this method to use a custom optimizer (but how does it interact with momentum, weight decay?)
     @classmethod
-    def build_optimizer(cls, cfg, model):
+    def build_evaluator(cls, cfg, dataset_name, output_folder=None):
         """
-        Build an optimizer from config.  This is built on`detectron2.solver.build_optimizer`,
-        but it returns an AdaBound optimizer instead of SGD.
+        Create evaluator(s) for a given dataset.
         """
-        norm_module_types = (
-            nn.BatchNorm1d,
-            nn.BatchNorm2d,
-            nn.BatchNorm3d,
-            nn.SyncBatchNorm,
-            # NaiveSyncBatchNorm inherits from BatchNorm2d
-            nn.GroupNorm,
-            nn.InstanceNorm1d,
-            nn.InstanceNorm2d,
-            nn.InstanceNorm3d,
-            nn.LayerNorm,
-            nn.LocalResponseNorm,
-        )
-        params: List[Dict[str, Any]] = []
-        memo: Set[nn.parameter.Parameter] = set()
-        for module in model.modules():
-            for key, value in module.named_parameters(recurse=False):
-                if not value.requires_grad:
-                    continue
-                # Avoid duplicating parameters
-                if value in memo:
-                    continue
-                memo.add(value)
-                lr = cfg.SOLVER.BASE_LR
-                weight_decay = cfg.SOLVER.WEIGHT_DECAY
-                if isinstance(module, norm_module_types):
-                    weight_decay = cfg.SOLVER.WEIGHT_DECAY_NORM
-                elif key == "bias":
-                    # NOTE: unlike Detectron v1, we now default BIAS_LR_FACTOR to 1.0
-                    # and WEIGHT_DECAY_BIAS to WEIGHT_DECAY so that bias optimizer
-                    # hyperparameters are by default exactly the same as for regular
-                    # weights.
-                    lr = cfg.SOLVER.BASE_LR * cfg.SOLVER.BIAS_LR_FACTOR
-                    weight_decay = cfg.SOLVER.WEIGHT_DECAY_BIAS
-                params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
-
-        #optimizer = adabound.AdaBound(model.parameters(), lr=1e-3, final_lr=0.1) #orig
-        optimizer = AdaBound(params, lr=cfg.SOLVER.BASE_LR, final_lr=0.1)
-        optimizer = maybe_add_gradient_clipping(cfg, optimizer)
-        return optimizer
+        return COCOEvaluator(dataset_name, cfg, distributed=True, output_dir=cfg.OUTPUT_DIR)
     
 def main(args):
     
-    #You need this line to get the 'run' object so you can log to it
-    run = Run.get_context()
-    run.log('Data folder', args.data_folder,)
-    run.log('Output folder', args.output_dir,'')
-    #run.log('test', 100, 'test logging a single value') #Log a value
-    #run.log_list('test_list', [1,2,3], description='test logging a list') #Log a list
+    print('Data folder', args.data_folder,)
     
     #Set paths
     rootdir = Path(str(args.data_folder))
     imagepath = Path(rootdir/'tiled_images')
     annotationpath = Path(rootdir/'tiled_annotations')
     output_dir = args.output_dir
-    run.log("rootdir",rootdir,)
-    run.log("imagepath",imagepath,)
-    run.log("annotationpath",annotationpath,)
-    run.log("output_dir",output_dir)
+    print("rootdir",rootdir,)
+    print("imagepath",imagepath,)
+    print("annotationpath",annotationpath,)
+    print("output_dir",output_dir)
     
     #Get classes
     annotation_files = get_annotation_files(annotationpath)
     class_counts = count_classes(annotation_files) #Get a list of tuples (class, count)
     orig_class_names = [tup[0] for tup in class_counts] #Get a list of classes
-    run.log_list('Original class names',orig_class_names,'Class names found in annotation files.')
-    
-    #Split data into train and validation sets (not used here currently because of difficulty writing the file)
-#     train_idxs,val_idxs = split_by_random(annotation_files,0.2)
-#     run.log('Length of training dataset',len(train_idxs),)
-#     run.log('Length of validation dataset',len(val_idxs),)
-
-#     #Write the text files to the root data directory (FAILED -- it's s read-only filesystem)
-#     write_train_validate_files(rootdir,annotation_files,train_idxs,val_idxs)
+    #run.log_list('Original class names',orig_class_names,'Class names found in annotation files.')
     
     #Set list of permitted class names.  
     #Some of the rarer names are lumped into "other_animal" & the list is alphabetical
@@ -428,36 +358,42 @@ def main(args):
     #Load datasets and register them with Detectron
     register_datasets(rootdir, CLASS_NAMES)
     sval = str(MetadataCatalog.get("survey_valid"))
-    run.log('survey_valid',sval,)
+    print('survey_valid',sval,)
  
     #Configure the model
     cfg = setup_model_configuration(rootdir, output_dir, CLASS_NAMES)
     
-    # default_setup performs some basic common setups at the beginning of a job, including:
-    #      1. Set up the detectron2 logger
-    #      2. Log basic information about environment, cmdline arguments, and config
-    #      3. Backup the config to the output directory
-    default_setup(cfg, args) ##in detectron2/engine/defaults.py.  
-    
-    #If you are doing inference (=evaluation), build the model first
+    #If you are doing inference (=evaluation), build the MODEL
     if args.eval_only:
         print("Building model")
         model = Trainer.build_model(cfg)
         DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
             cfg.MODEL.WEIGHTS, resume=args.resume
         )
-        #Run the evaluation (build a test loader, an evaluator, and run)
+        #Run the evaluation (build a loader, an evaluator, and run)
+        #This should output 447 images or so
         print("Building data loader and evaluator")
         val_loader = build_detection_test_loader(cfg, "survey_valid")
         evaluators = DatasetEvaluators([COCOEvaluator("survey_valid", cfg, distributed=True, output_dir=cfg.OUTPUT_DIR)])
         #Note: 'results' holds the summary table values.  Predictions are written to "instances_predictions.pth"
         print("Doing inference")
         results = inference_on_dataset(model, val_loader, evaluators)
+        
+        # another equivalent way is to use trainer.test
+        #res = Trainer.test(cfg, model)
+        #Then test calls build_evaluator(), above
+            #...evaluator = cls.build_evaluator(cfg, dataset_name)...
+        #--eval-only MODEL.WEIGHTS /path/to/checkpoint_file
         return results
 
-    #Otherwise, train (build the Trainer and return it)
+    #Otherwise, train (and return the trainer)
+    #trainer = Trainer(cfg)
     print("Creating or loading a trainer")
+    #trainer = DefaultTrainer(cfg)
     trainer = Trainer(cfg)
+    evaluators = DatasetEvaluators([COCOEvaluator("survey_valid", cfg, distributed=True, output_dir=cfg.OUTPUT_DIR)])
+    #Load the model.  If you set resume=True it will also try to load "checkpointables" including the optimizer and 
+    #LR scheduler and will then start from whatever image count you had gotten to instead of from image 1.
     trainer.resume_or_load(resume=args.resume)
     print("Training")
     return trainer.train()
@@ -490,6 +426,7 @@ if __name__ == '__main__':
     
     #Call the parser
     args = parser.parse_args()
+    #print('data folder',args.data_folder,type(args.data_folder))
     print("Command Line Args:", args)
     #main(args)
     launch(

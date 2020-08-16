@@ -6,7 +6,8 @@ import csv
 import glob
 import random
 from PIL import Image
-from pascal_voc_writer import Writer
+#Note: called from the same envt as the notebook is using
+from trident_project.dev_packages.pascal_voc_writer.pascal_voc_writer import Writer
 from torchvision.transforms.functional import pad as tvpad #Used for padding
 #from pathlib import Path  #I put this in helpers instead
 from .helpers import *
@@ -378,11 +379,8 @@ class Slicer(object):
             orig_w, orig_h = int(root.find('size')[0].text), int(
                 root.find('size')[1].text)
             #Get original image filename
-            im_filepath = root.find('filename').text
+            im_filepath = Path(root.find('path').text).with_suffix('')
             im_filename = str(Path(im_filepath).stem)
-            #Potentially drop root directory(ies) to deal with filenames in xml file contents that have different root paths
-            #if self.rootpath_droplist is not None:
-            #    im_filename = clean_filepath(im_filename,self.rootpath_droplist) 
             #Get size of padded image
             padding = calc_padding((orig_w,orig_h),tile_size,tile_overlap)
             im_size = (orig_w + padding[2],orig_h + padding[3])
@@ -405,9 +403,13 @@ class Slicer(object):
             for tile in tiles:
                 #Get tile row and column
                 row,col = self.__get_rowcol_indexes(tiles,tile)
-                img_no_str = '{}{}{}'.format(im_filename,row,col)
+                #breakpoint()
+                img_no_str = '{}{}{}'.format(im_filename,row,col) #produces a tile name like imgsourcefile[3][6]
+                tilepath = '{}{}{}'.format(im_filepath,row,col) #same but with a full path for the tile
                 #initialize a new annotation writer for this tile
-                voc_writer = Writer('{}'.format(img_no_str), tile_w, tile_h)
+                #Initialize the writer with the full path so it correctly fills out the <filename>,<folder>,<path> elements.
+                voc_writer = Writer('{}'.format(tilepath), tile_w, tile_h)
+                voc_writer.changePath(tilepath) #override the default choice, which is wrong here
                 #Loop through all objects (bboxes) in the image to check if each falls in this tile
                 empty_count = 0 #The number of bboxes that don't fall in the tile
                 for obj in objects:
@@ -705,16 +707,15 @@ class Slicer(object):
             # Skip the header
             next(read_csv, None)
             mapping = random.choice(list(read_csv))
-            breakpoint()
-            src_fullpath = Path(self.IMG_SRC)/Path(map_path).parent/mapping[0] #the full path to the jpg image
-            src_name = Path(src_fullpath).parent.
-            #src_name = src_fullpath.split('/')[-1].split('.')[-2] #just the filename without extension
+            #breakpoint()
+            src_fullpath = str(Path(Path(self.IMG_SRC)/mapping[0]).with_suffix('.jpg')) #the full path to the jpg image
+            src_name = mapping[0] #just the filename without extension
             tile_files = mapping[1:]
             tsize = self._tile_size
             toverlap = self._tile_overlap
             
             #Plot the original image, then the tiles
-            self.plot_image_boxes(self.IMG_SRC, self.ANN_SRC, src_fullpath, src_name)
+            self.plot_image_boxes(self.IMG_SRC, self.ANN_SRC, src_name)
             self.plot_tile_boxes(self.IMG_SRC,self.IMG_DST, self.ANN_DST, src_fullpath, src_name,tile_files,tsize,toverlap)
 
     def visualize_resized_random(self):
@@ -765,7 +766,7 @@ class Slicer(object):
         rownum = [n for (n,tpl) in enumerate(rows) if (tile[1],tile[3]) == tpl]
         return (rownum,colnum)
 
-    def plot_image_boxes(self,img_path, ann_path, src_fullpath,src_name):
+    def plot_image_boxes(self,img_path, ann_path, src_name):
         """Plots bounding boxes on images using `matplotlib`.
         Parameters
         ----------
@@ -773,8 +774,6 @@ class Slicer(object):
             /path/to/image/source/directory
         ann_path : str
             /path/to/annotation/source/directory
-        src_fullpath: str 
-            /full/path/to/image
         src_name: str 
             image name without extension
 
@@ -791,11 +790,11 @@ class Slicer(object):
         #im = Image.open(src_fullpath)
         im = np.array(im, dtype=np.uint8)
 
-        #list the original (un-tiled) bounding boxes
+        #list the original (un-tiled) bounding boxes.  Text has to be converted to float, then int, then put into a tuple
         rois = []
         for member in root.findall('object'):
             bbx = member.find('bndbox')
-            rois.append((int(float(bbx[0].text)), int(bbx[1].text)),int(float(bbx[2].text)), int(float(bbx[3].text)))
+            rois.append((int(float(bbx[0].text)), int(float(bbx[1].text)),int(float(bbx[2].text)), int(float(bbx[3].text))))
 
         # Create figure and axes
         fig, ax = plt.subplots(1, figsize=(10, 10))
@@ -833,6 +832,8 @@ class Slicer(object):
         #Get tile matrix dimensions for this particular image
         #Image must be padded and then tiles calculated.
         fn = src_fullpath
+        #BROKEN HERE
+        breakpoint()
         orig_size = Image.open(fn).size
         padding = calc_padding(orig_size,tile_size,tile_overlap)
         img_size = (orig_size[0] + padding[2],orig_size[1] + padding[3])
