@@ -16,11 +16,18 @@
         <pose>{{ object.pose }}</pose>
         <truncated>{{ object.truncated }}</truncated>
         <difficult>{{ object.difficult }}</difficult>
+        <score>{{ object.score }}</score>
         <bndbox>
             <xmin>{{ object.xmin }}</xmin>
             <ymin>{{ object.ymin }}</ymin>
             <xmax>{{ object.xmax }}</xmax>
             <ymax>{{ object.ymax }}</ymax>
         </bndbox>
-    </object>{% endfor %}
+        {% for att in attributes %} <attributes>
+        <attribute>
+            <name>{{ att.name }}</name>
+            <value>{{ att.value }}</value>
+        </attribute>
+    </attributes>{% endfor %}
+    </object>{% endfor %} 
 </annotation>

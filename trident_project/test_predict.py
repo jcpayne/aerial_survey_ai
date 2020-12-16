@@ -47,7 +47,6 @@ from azureml.core.run import Run
 print("All imports passed")
 
 def get_annotation_files(annotationpath):
-    """Returns full filepaths for .xml files in the annotationpath."""
     annotation_files = [str(x) for x in annotationpath.iterdir() if x.suffix == '.xml']
     return (annotation_files)
 
@@ -66,26 +65,17 @@ def count_classes(annotation_files):
 
 def load_voc_instances(rootdir: str, split: str,CLASS_NAMES):
     """
-    Load VOC annotations to Detectron2 format.  It takes filenames from train.txt or valid.txt and joins them to a root dir
-    to get filenames for annotation and image files.  It does not use the filename or path from the XML annotations.
-    From the XML annotation, the only things it uses are height, width, and objects (class, plus bndbox incl. coordinates).
-    Any classname not in CLASS_NAMES is renamed to "other_animal" inside the model.
-    Note: train.txt and valid.txt (in rootdir) contain image filenames (without extension or path).
+    Load VOC annotations to Detectron2 format.
     Args:
-        rootdir: Root directory, under which are "tiled_annotations" and "tiled_images" subdirectories
+        rootdir: Root directory, under which are subdirectories ontain "tiled_annotations", "tiled_images"
         split (str): one of "train", "valid"
-        CLASS_NAMES: a set of valid classnames
+    Note: train.txt and valid.txt (in rootdir) contain image filenames (without extension or path)
     """
     #Open the train.txt or valid.txt files
     with PathManager.open(os.path.join(rootdir, split + ".txt")) as f:
         fileids = np.loadtxt(f, dtype=np.str)
-    #Randomly shuffle the order of the training files on each run (leave validation file order unchanged)
-    if (split=='train'):
-        random.shuffle(fileids)
 
     dicts = []
-    #Note: fileid is the filename stem (no path or suffix) from train.txt or valid.txt.
-    #anno_file and jpeg_file just join that stem to a root directory and give it a suffix.
     for fileid in fileids:
         anno_file = os.path.join(rootdir, "tiled_annotations", fileid + ".xml")
         jpeg_file = os.path.join(rootdir, "tiled_images", fileid + ".jpg")
@@ -121,9 +111,8 @@ def split_by_random(o,valid_pct):
     return rand_idx[cut:],rand_idx[:cut]
 
 def write_train_validate_files(rootdir,annotation_files,train_idxs,val_idxs):
-    """Writes two text files to the root directory that define training and validation data sets.
-       They contain filenames without path or suffix.
-       """
+    """Writes two text files (training/validation) with filenames to the rootdirectory.
+       These define the training and validation data sets."""
     trfile = open(str(rootdir/'train.txt'),'w')
     for idx in train_idxs:
         fname = Path(annotation_files[idx]).stem
@@ -160,8 +149,6 @@ def register_datasets(rootdir, CLASS_NAMES):
     
 #     return cfg
     
-#WARNING: In this file, you must write 'key=value', NOT 'key:value'.  However, the latter is the 
-#proper format for a config file.  If you misformat an entry, it will be silently ignored.
 def setup_model_configuration(rootdir, output_dir, CLASS_NAMES):
     cfg = get_cfg()
     add_tridentnet_config(cfg) #Loads a few values that distinguish TridentNet from Detectron2
@@ -175,47 +162,39 @@ def setup_model_configuration(rootdir, output_dir, CLASS_NAMES):
     #cfg.merge_from_list(args.opts) #this might work -- not tried
 
     #OPTIONAL [WARNING!]  Specify model weights
-    #cfg.MODEL.WEIGHTS = "detectron2://ImageNetPretrained/MSRA/R-101.pkl" #original weights
-    cfg.MODEL.WEIGHTS = str(Path(rootdir)/"model_final.pth") #This is in blobstore/temp directory
+    #cfg.MODEL.WEIGHTS:"detectron2://ImageNetPretrained/MSRA/R-101.pkl" #original weights
+    #cfg.MODEL.WEIGHTS = str(Path(rootdir)/"model_final.pth") #This is in blobstore/temp directory
+    cfg.MODEL.WEIGHTS = str(Path(rootdir)/"model_final.pth")
     
-    cfg.MODEL.MASK_ON = False
-    cfg.MODEL.RESNETS.DEPTH = 101
+    cfg.MODEL.MASK_ON: False
+    cfg.MODEL.RESNETS.DEPTH: 101
     cfg.MODEL.ANCHOR_GENERATOR.SIZES = [[32, 64, 128, 256, 512]]
     cfg.MODEL.BACKBONE.FREEZE_AT = 1
-    cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512  #(default is 512)
+    cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512  #(default: 512)
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(CLASS_NAMES) # 
     
-    #KEEP. Default Solver specs. (Note; 3x seems to require 3 times as many steps as 1x)
-    #Base-TridentNet-Fast-C4.yaml 60,000-80,000 steps and 90,000 max_iter.
-    #tridentnet_fast_R_50_C4_1x.yaml SAME
-    #tridentnet_fast_R_50_C4_3x.yaml 210,000 - 250,000 steps and 270,000 max_iter.
-    #tridentnet_fast_R_101_C4_3x.yaml SAME      
+    #KEEP: Default Solver specs: (Note: 3x seems to require 3 times as many steps as 1x)
+    #Base-TridentNet-Fast-C4.yaml: 60,000-80,000 steps and 90,000 max_iter.
+    #tridentnet_fast_R_50_C4_1x.yaml: SAME
+    #tridentnet_fast_R_50_C4_3x.yaml: 210,000 - 250,000 steps and 270,000 max_iter.
+    #tridentnet_fast_R_101_C4_3x.yaml: SAME      
     
-    #On a V2 machine, it takes about 9 hours to do 25,000 steps.  
-    #cfg.SOLVER.STEPS = (60000, 80000) #for base model
+    #cfg.SOLVER.STEPS: (60000, 80000) #for base model
     #cfg.SOLVER.MAX_ITER = 90000  
-    #cfg.LR_SCHEDULER='WarmupCosineLR'
-    cfg.SOLVER.LR_SCHEDULER_NAME = "WarmupMultiStepLR"
-    #You idiot!  The steps are the places where the default "WarmupMultiStepLR" scheduler drops the learning rate by gamma=0.1.
-    cfg.SOLVER.STEPS = (3500, 3800) #(210000, 250000) for trident, also 16K,18K for 20K
-    cfg.SOLVER.MAX_ITER = 4000 #  270000 for trident
+    cfg.LR_SCHEDULER='WarmupCosineLR'
+    cfg.SOLVER.STEPS: (7000, 8000) #(210000, 250000) for trident, also 16K,18K for 20K
+    cfg.SOLVER.MAX_ITER = 10000 #  270000 for trident
     cfg.SOLVER.WARMUP_ITERS = 1000 #1000 is default
-    cfg.SOLVER.IMS_PER_BATCH = 16
-        
-    #Learning Rates
-    #From Goyal et al. 2017: Linear Scaling Rule: When the minibatch size is multiplied by k, 
-    #multiply the learning rate by k.  i.e., as you increase the batch size because of using 
-    #additional GPUs, increase the learning rate too.  Works up to very large batches (8,000 images)
-    #See auto_scale_workers() in Detectron2 (very important!)
-    cfg.SOLVER.BASE_LR = 0.002 #Is .001 in defaults.py but .02 in tridentnet, but they trained on 8 GPUs
-    cfg.SOLVER.CHECKPOINT_PERIOD = 2500
+    cfg.SOLVER.IMS_PER_BATCH: 16
+    cfg.SOLVER.BASE_LR: 0.01 #Is .001 in defaults.py.  It overflowed when I tried 0.02
+    cfg.SOLVER.CHECKPOINT_PERIOD = 500
     
-    #Pixel means are from 19261 500x500 tiles on Aug 15 2020 (train_dict)
+    #Pixel means are from 5724 500x500 tiles on Jul 16 2020 (train_dict)
     cfg.INPUT.FORMAT = "RGB"
-    cfg.MODEL.PIXEL_MEAN = [143.078, 140.690, 120.606] #first 5K batch was [137.473, 139.769, 106.912] #default was [103.530, 116.280, 123.675]
-    cfg.MODEL.PIXEL_STD = [34.139, 29.849, 31.695]#first 5k batch was [26.428, 22.083, 26.153]
-        
-    #Auugmentation. Add corruption to images with probability p
+    cfg.MODEL.PIXEL_MEAN = [137.473, 139.769, 106.912] #default was [103.530, 116.280, 123.675]
+    cfg.MODEL.PIXEL_STD = [26.428, 22.083, 26.153]
+    
+    #Auugmentation: Add corruption to images with probability p
     cfg.INPUT.corruption = 0.1
     
     cfg.INPUT.MIN_SIZE_TRAIN = (400,420,440,460,480,500) #See next cell for how this was calculated
@@ -231,7 +210,7 @@ def setup_model_configuration(rootdir, output_dir, CLASS_NAMES):
 
     cfg.OUTPUT_DIR = output_dir
       
-    #WARNING. #I think freeze() makes the config immutable; hence it must come last
+    #WARNING: #I think freeze() makes the config immutable; hence it must come last
     cfg.freeze() 
 
     return cfg
@@ -385,10 +364,8 @@ class Trainer(DefaultTrainer):
                 params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
 
         #optimizer = adabound.AdaBound(model.parameters(), lr=1e-3, final_lr=0.1) #orig
-        #print('LR before optimizer: ',cfg.SOLVER.BASE_LR)
-        optimizer = AdaBound(params, lr=cfg.SOLVER.BASE_LR, final_lr=0.05)
+        optimizer = AdaBound(params, lr=cfg.SOLVER.BASE_LR, final_lr=0.1)
         optimizer = maybe_add_gradient_clipping(cfg, optimizer)
-        #print('LR after optimizer: ',cfg.SOLVER.BASE_LR)
         return optimizer
     
 def main(args):

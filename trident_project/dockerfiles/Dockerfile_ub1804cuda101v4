@@ -1,0 +1,2 @@
+FROM jpworkspacea09a28ea.azurecr.io/tridentbase:v2
+RUN pip install imgaug

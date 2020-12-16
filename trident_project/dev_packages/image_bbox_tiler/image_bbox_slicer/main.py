@@ -106,7 +106,16 @@ class Slicer(object):
         self.ANN_SRC = ann_src
         self.ANN_DST = ann_dst
         self.badlist = badlist
-          
+    
+    def config_tilesize(self, tile_size,tile_overlap):
+        """
+        Set tile size in the Slicer object
+        tile_size: tuple (width, height) in pixels
+        tile_overlap: float. Tile overlap between consecutive strides as proportion of tile size
+        """
+        self._tile_size = tile_size
+        self._tile_overlap = tile_overlap
+    
     def pad_image(self,img,tile_size,tile_overlap):
         """
         Returns an image that is padded to an even multiple of the tile size, taking overlap 
@@ -288,9 +297,11 @@ class Slicer(object):
             #Get a list of tile coordinates
             tiles = self.__get_tiles(im.size, tile_size, tile_overlap)
             
-            #Note: in the top-level function slice_by_size(), slice_bboxes_by_size() 
-            #is called *before* slice_images_by_size(); therefore, the 'ignore_tiles' 
-            #list has already been modified in __slice_bboxes() when it is passed to this function.
+            #Note: the top-level parent function, slice_by_size(), calls two child functions: 
+            # 1) slice_bboxes_by_size() and 2) slice_images_by_size().  
+            #In the parent, slice_bboxes_by_size is called *before* slice_images_by_size,
+            #therefore, the 'ignore_tiles' list has already been modified in __slice_bboxes() 
+            #when it is passed to this function, and mapper.csv has already been written.
             new_ids = []
             for tile in tiles:
                 row,col = self.__get_rowcol_indexes(tiles,tile)
@@ -379,8 +390,13 @@ class Slicer(object):
             orig_w, orig_h = int(root.find('size')[0].text), int(
                 root.find('size')[1].text)
             #Get original image filename
-            im_filepath = Path(root.find('path').text).with_suffix('')
-            im_filename = str(Path(im_filepath).stem)
+            im_filename = str(Path(root.find('filename').text).stem)
+            if root.find('path') is not None:
+                im_filepath = str(Path(root.find('path').text).with_suffix(''))
+            else:
+                im_filepath = str(Path(self.IMG_SRC)/im_filename)
+#            
+#            im_filename = str(Path(im_filepath).stem)
             #Get size of padded image
             padding = calc_padding((orig_w,orig_h),tile_size,tile_overlap)
             im_size = (orig_w + padding[2],orig_h + padding[3])
@@ -677,7 +693,7 @@ class Slicer(object):
                                      obj[1], obj[2], obj[3])
             voc_writer.save('{}/{}.xml'.format(self.ANN_DST, an_filename))
 
-    def visualize_sliced_random(self, map_dir=None):
+    def visualize_sliced_random(self, orig_ann_dir, orig_img_dir, tiled_img_dir, tiled_ann_dir):
         """Picks an image randomly and visualizes unsliced and sliced images using `matplotlib`.
 
         Parameters:
@@ -691,32 +707,86 @@ class Slicer(object):
         None
             However, displays the final plots.
         """
-        if not self.save_before_after_map and map_dir is None:
-            print('No argument passed to `map_dir` and save_before_after_map is set False. \
-                Looking for `mapper.csv` in image destination folder.')
-        mapping = ''
-
-        if map_dir is None:
-            map_path = self.ANN_DST + '/mapper.csv'
-        else:
-            map_path = map_dir + '/mapper.csv'
+        map_path = orig_ann_dir + '/mapper.csv'
 
         #Extract one record (orig_filename, list of tile_names) from the mapper.csv file at random
+        df = pd.read_csv(map_path)
+        breakpoint()
+        df[]
+        
         with open(map_path) as src_map:
             read_csv = csv.reader(src_map, delimiter=',')
             # Skip the header
             next(read_csv, None)
-            mapping = random.choice(list(read_csv))
             #breakpoint()
-            src_fullpath = str(Path(Path(self.IMG_SRC)/mapping[0]).with_suffix('.jpg')) #the full path to the jpg image
-            src_name = mapping[0] #just the filename without extension
-            tile_files = mapping[1:]
+            
+            #TODO: I added this shit and it's worse than before
+            # It must be able to select a new row if the one it's on has no tiles;
+            # Also it must not run off the end of the file
+            ok = False
+            while not ok:
+                mapping = random.choice(list(read_csv))
+                #breakpoint()
+                src_fullpath = str(Path(Path(self.IMG_SRC)/mapping[0]).with_suffix('.jpg')) #the full path to the jpg image
+                src_name = mapping[0] #just the filename without extension
+                tile_files = mapping[1:]
+                if len(tile_files[0]) > 0:
+                    ok = True
+            
             tsize = self._tile_size
             toverlap = self._tile_overlap
             
             #Plot the original image, then the tiles
             self.plot_image_boxes(self.IMG_SRC, self.ANN_SRC, src_name)
             self.plot_tile_boxes(self.IMG_SRC,self.IMG_DST, self.ANN_DST, src_fullpath, src_name,tile_files,tsize,toverlap)
+            print(src_fullpath)
+
+            
+#     def visualize_sliced_random(self, map_dir=None, img_dir, ann_dir):
+#         """Picks an image randomly and visualizes unsliced and sliced images using `matplotlib`.
+
+#         Parameters:
+#         ----------
+#         map_dir : str, optional
+#             /path/to/mapper/directory.
+#             By default, looks for `mapper.csv` in image destination folder. 
+
+#         Returns:
+#         ----------
+#         None
+#             However, displays the final plots.
+#         """
+#         if not self.save_before_after_map and map_dir is None:
+#             print('No argument passed to `map_dir` and save_before_after_map is set False. \
+#                 Looking for `mapper.csv` in image destination folder.')
+#         mapping = ''
+
+#         if map_dir is None:
+#             map_path = self.ANN_DST + '/mapper.csv'
+#         else:
+#             map_path = map_dir + '/mapper.csv'
+
+#         #Extract one record (orig_filename, list of tile_names) from the mapper.csv file at random
+#         with open(map_path) as src_map:
+#             read_csv = csv.reader(src_map, delimiter=',')
+#             # Skip the header
+#             next(read_csv, None)
+#             ok = False
+#             while not ok:
+#                 mapping = random.choice(list(read_csv))
+#                 #breakpoint()
+#                 src_fullpath = str(Path(Path(self.IMG_SRC)/mapping[0]).with_suffix('.jpg')) #the full path to the jpg image
+#                 src_name = mapping[0] #just the filename without extension
+#                 tile_files = mapping[1:]
+#                 if len(tile_files[0]) > 0:
+#                     ok = True
+            
+#             tsize = self._tile_size
+#             toverlap = self._tile_overlap
+            
+#             #Plot the original image, then the tiles
+#             self.plot_image_boxes(self.IMG_SRC, self.ANN_SRC, src_name)
+#             self.plot_tile_boxes(self.IMG_SRC,self.IMG_DST, self.ANN_DST, src_fullpath, src_name,tile_files,tsize,toverlap)
 
     def visualize_resized_random(self):
         """Picks an image randomly and visualizes original and resized images using `matplotlib`
@@ -833,7 +903,7 @@ class Slicer(object):
         #Image must be padded and then tiles calculated.
         fn = src_fullpath
         #BROKEN HERE
-        breakpoint()
+        #breakpoint()
         orig_size = Image.open(fn).size
         padding = calc_padding(orig_size,tile_size,tile_overlap)
         img_size = (orig_size[0] + padding[2],orig_size[1] + padding[3])

@@ -1,0 +1,14 @@
+FROM mcr.microsoft.com/azureml/openmpi3.1.2-cuda10.1-cudnn7-ubuntu18.04
+RUN apt-get update
+RUN apt-get install 'ffmpeg' 'libsm6' 'libxext6'  -y
+RUN pip install torch==1.6 torchvision==0.7
+RUN pip install cython pyyaml==5.1 'pycocotools>=2.0.1'
+RUN pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu101/torch1.6/index.html
+RUN pip install opencv-python 
+RUN pip install pathlib
+RUN pip install jupyterlab
+RUN pip install --upgrade azureml-sdk
+RUN pip install azureml-datadrift
+RUN pip install azureml-train-automl
+RUN pip install azureml-interpret
+COPY ./dev_packages /

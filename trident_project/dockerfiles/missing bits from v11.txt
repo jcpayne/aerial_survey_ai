@@ -1,0 +1,18 @@
+#NOTE: opencv-python is version 4.1.2.30 on Colab 
+
+RUN pip install imgaug
+RUN pip install pascal-voc-writer
+
+
+RUN conda create --name trident
+RUN conda install -c r -y conda python=3.6.2 pip=20.1.1
+RUN conda install -n trident jupyterlab 
+RUN conda install -n trident nb_conda_kernels
+RUN conda install -n trident scikit-learn
+RUN conda install -n trident seaborn
+RUN conda install -n trident lxml
+RUN pip install adabound
+RUN pip install azureml-contrib-services
+RUN conda install -n trident jsonpickle
+
+
