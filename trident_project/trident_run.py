@@ -79,9 +79,6 @@ def load_voc_instances(rootdir: str, split: str,CLASS_NAMES):
     #Open the train.txt or valid.txt files
     with PathManager.open(os.path.join(rootdir, split + ".txt")) as f:
         fileids = np.loadtxt(f, dtype=np.str)
-    #Randomly shuffle the order of the training files on each run (leave validation file order unchanged)
-    if (split=='train'):
-        random.shuffle(fileids)
 
     dicts = []
     #Note: fileid is the filename stem (no path or suffix) from train.txt or valid.txt.
@@ -159,9 +156,8 @@ def register_datasets(rootdir, CLASS_NAMES):
 #     cfg.freeze() #
     
 #     return cfg
-    
-#WARNING: In this file, you must write 'key=value', NOT 'key:value'.  However, the latter is the 
-#proper format for a config file.  If you misformat an entry, it will be silently ignored.
+
+#WARNING: if you mis-format a value, it will be silently ignored (i.e., use 'key:value' instead of 'key=value')
 def setup_model_configuration(rootdir, output_dir, CLASS_NAMES):
     cfg = get_cfg()
     add_tridentnet_config(cfg) #Loads a few values that distinguish TridentNet from Detectron2
@@ -176,7 +172,8 @@ def setup_model_configuration(rootdir, output_dir, CLASS_NAMES):
 
     #OPTIONAL [WARNING!]  Specify model weights
     #cfg.MODEL.WEIGHTS = "detectron2://ImageNetPretrained/MSRA/R-101.pkl" #original weights
-    cfg.MODEL.WEIGHTS = str(Path(rootdir)/"model_final.pth") #This is in blobstore/temp directory
+    #cfg.MODEL.WEIGHTS = str(Path(rootdir)/"model_final.pth") #This is in blobstore/temp directory
+    cfg.MODEL.WEIGHTS = str(Path(rootdir)/"model_final.pth")
     
     cfg.MODEL.MASK_ON = False
     cfg.MODEL.RESNETS.DEPTH = 101
@@ -185,30 +182,21 @@ def setup_model_configuration(rootdir, output_dir, CLASS_NAMES):
     cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512  #(default is 512)
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(CLASS_NAMES) # 
     
-    #KEEP. Default Solver specs. (Note; 3x seems to require 3 times as many steps as 1x)
-    #Base-TridentNet-Fast-C4.yaml 60,000-80,000 steps and 90,000 max_iter.
-    #tridentnet_fast_R_50_C4_1x.yaml SAME
-    #tridentnet_fast_R_50_C4_3x.yaml 210,000 - 250,000 steps and 270,000 max_iter.
-    #tridentnet_fast_R_101_C4_3x.yaml SAME      
+    #KEEP. Default Solver specs; (Note 3x seems to require 3 times as many steps as 1x)
+    #Base-TridentNet-Fast-C4.yaml: 60,000-80,000 steps and 90,000 max_iter.
+    #tridentnet_fast_R_50_C4_1x.yaml: SAME
+    #tridentnet_fast_R_50_C4_3x.yaml: 210,000 - 250,000 steps and 270,000 max_iter.
+    #tridentnet_fast_R_101_C4_3x.yaml: SAME      
     
-    #On a V2 machine, it takes about 9 hours to do 25,000 steps.  
     #cfg.SOLVER.STEPS = (60000, 80000) #for base model
     #cfg.SOLVER.MAX_ITER = 90000  
-    #cfg.LR_SCHEDULER='WarmupCosineLR'
-    cfg.SOLVER.LR_SCHEDULER_NAME = "WarmupMultiStepLR"
-    #You idiot!  The steps are the places where the default "WarmupMultiStepLR" scheduler drops the learning rate by gamma=0.1.
-    cfg.SOLVER.STEPS = (3500, 3800) #(210000, 250000) for trident, also 16K,18K for 20K
-    cfg.SOLVER.MAX_ITER = 4000 #  270000 for trident
+    cfg.LR_SCHEDULER='WarmupCosineLR'
+    cfg.SOLVER.STEPS = (7000, 8000) #(210000, 250000) for trident, also 16K,18K for 20K
+    cfg.SOLVER.MAX_ITER = 10000 #  270000 for trident
     cfg.SOLVER.WARMUP_ITERS = 1000 #1000 is default
     cfg.SOLVER.IMS_PER_BATCH = 16
-        
-    #Learning Rates
-    #From Goyal et al. 2017: Linear Scaling Rule: When the minibatch size is multiplied by k, 
-    #multiply the learning rate by k.  i.e., as you increase the batch size because of using 
-    #additional GPUs, increase the learning rate too.  Works up to very large batches (8,000 images)
-    #See auto_scale_workers() in Detectron2 (very important!)
-    cfg.SOLVER.BASE_LR = 0.002 #Is .001 in defaults.py but .02 in tridentnet, but they trained on 8 GPUs
-    cfg.SOLVER.CHECKPOINT_PERIOD = 2500
+    cfg.SOLVER.BASE_LR = 0.01 #Is .001 in defaults.py.  It overflowed when I tried 0.02
+    cfg.SOLVER.CHECKPOINT_PERIOD = 5000
     
     #Pixel means are from 19261 500x500 tiles on Aug 15 2020 (train_dict)
     cfg.INPUT.FORMAT = "RGB"
@@ -231,9 +219,8 @@ def setup_model_configuration(rootdir, output_dir, CLASS_NAMES):
 
     cfg.OUTPUT_DIR = output_dir
       
-    #WARNING. #I think freeze() makes the config immutable; hence it must come last
+    #WARNING; #freeze() makes the config immutable; hence it must come last
     cfg.freeze() 
-
     return cfg
 
 #Overriding the method (which is in detectron2/data/detection_utils.py)
@@ -385,10 +372,8 @@ class Trainer(DefaultTrainer):
                 params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
 
         #optimizer = adabound.AdaBound(model.parameters(), lr=1e-3, final_lr=0.1) #orig
-        #print('LR before optimizer: ',cfg.SOLVER.BASE_LR)
-        optimizer = AdaBound(params, lr=cfg.SOLVER.BASE_LR, final_lr=0.05)
+        optimizer = AdaBound(params, lr=cfg.SOLVER.BASE_LR, final_lr=0.1)
         optimizer = maybe_add_gradient_clipping(cfg, optimizer)
-        #print('LR after optimizer: ',cfg.SOLVER.BASE_LR)
         return optimizer
     
 def main(args):

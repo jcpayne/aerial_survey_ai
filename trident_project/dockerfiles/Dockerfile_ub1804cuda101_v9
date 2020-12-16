@@ -1,2 +1,0 @@
-FROM c7ee859dbf144180b5d2526f88375e0c.azurecr.io/tridentbase:v8
-RUN conda install -n trident jsonpickle
