@@ -10,7 +10,6 @@ Our goal is to create an efficient workflow for analyzing images to detect wildl
 The Tanzania Wildlife Research Institute wants to develop new methods for aerial survey in Africa. One of the more promising developments is the use of digital photography from the same aerial platforms (Cessnas) already in use for wildlife counts - the problem is that _analysing_ the photographs takes far longer than a traditional survey. It is hoped that ML will allow us to more rapidly process the images and make photographic counts viable.
 
 ## News/Updates
-Just major developments
 * 4/17/2020 - Data migrated from AWS to Azure (/TA25; annotation file TA25-RKE-20191128A)
 * 4/22/2020 - Second batch of images and annotations added (TA25-RKE-20191201)
 * 4/24/2020 - Simple model data loader working (*later abandoned)
@@ -72,12 +71,12 @@ Code and documentation are presented in Jupyter Notebooks.  I used a package cal
 **[Object detection using AI on AML cluster](https://github.com/jcpayne/aerial_survey_ai/blob/master/05_aml-pipeline.ipynb)**
 - Code for running a TridentNet model, which is an "Faster R-CNN" model from Facebook Research (a fork of Detectron2) on Azure Machine Learning Services.  Customizations include dataloaders, image augmentation, and optimizer, in-memory tiling, reassembly of tiled annotations, and more.  The notebook runs via the AML Python SDK, and it calls resources via `azureml`, including:
     - [a Dockerfile](https://github.com/jcpayne/aerial_survey_ai/blob/master/trident_project/dockerfiles/Dockerfile_ub1804cuda101_v17) used to create the container environment that is run on the AML cluster.
-    - [trident_run.py](https://github.com/jcpayne/aerial_survey_ai/blob/master/trident_run.py); the main script for running the model;
+    - [distrib_run_and_inference.py](https://github.com/jcpayne/aerial_survey_ai/blob/master/distrib_run_and_inference.py); the main Python script for running the Detectron2 model;
     - [development packages](https://github.com/jcpayne/aerial_survey_ai/blob/master/trident_project/dev_packages) containing 
-        - **TridentNet** (which is not available as a PYPI package)
-        - **pascal-voc-writer** A lightly modified annotation file writer
-        - **ImageBboxTiler**, a heavily-modified fork of the `ImageBboxSlicer package`
-        - **trident_dev**; the rest of the code I wrote for this project (also unpackaged)
+        - **[TridentNet](https://github.com/jcpayne/aerial_survey_ai/blob/master/trident_project/dev_packages/TridentNet)** (which is not available as a PYPI package)
+        - **[pascal-voc-writer](https://github.com/jcpayne/aerial_survey_ai/blob/master/trident_project/dev_packages/pascal_voc_writer)** A lightly modified annotation file writer
+        - **[ImageBboxTiler](https://github.com/jcpayne/aerial_survey_ai/blob/master/trident_project/dev_packages/image_bbox_tiler)**, a heavily-modified fork of the `ImageBboxSlicer package`
+        - **[trident_dev](https://github.com/jcpayne/aerial_survey_ai/blob/master/trident_project/dev_packages/trident_dev)**; the rest of the code I wrote for this project (also unpackaged)
     
 **[Training a multi-label classification model](https://github.com/jcpayne/aerial_survey_ai/blob/master/06_fastai_model.ipynb)**
 - Build a multi-label classification model (a ResNet50 from fastai) to act as a preliminary filter
@@ -92,18 +91,24 @@ Code and documentation are presented in Jupyter Notebooks.  I used a package cal
 ### RProject
 A `.RProj` file is present for the convenience of fiddling about in R with the various files. The `.gitingore` was also updated to ignore userdata / rdata stuff which would otherwise mess with the git structures (lots of invisible files) - what this means is that you should always re-run code to recreate your local environment if there have been changes (which is good practice anyway).
 
-## References
-In progress.
+## References (BibTex)
+@InProceedings{li2019scale,
+  title={Scale-Aware Trident Networks for Object Detection},
+  author={Li, Yanghao and Chen, Yuntao and Wang, Naiyan and Zhang, Zhaoxiang},
+  journal={The International Conference on Computer Vision (ICCV)},
+  year={2019}
+}
 
 ## Installation
-Our code is not yet installable.  
+Our code is not yet installable...but I'm working on it.  
 
 ## Contributors
-John Payne & Howard Frederick
+John Payne wrote the notebooks, notes, and other code in this repository that are focused on AI.
+Howard Frederick runs the larger project.  He ran the survey teams that collected the data used here and set up and directed a photographic analysis lab team in Tanzania who created the annotations used.  He participated in all of the strategic decisions and model performance assessments, and we shared our Microsoft Azure resources for the project.
 
 ## Citation
 Please cite this work as follows:
-Payne, J.C. 2021.  https://github.com/jcpayne/aerial_survey_ai
+Payne, J.C. and H.L. Frederick 2021.  Object detection in aerial surveys.  URL: https://github.com/jcpayne/aerial_survey_ai
 
 ## License
 - **Code** is open-source.  
