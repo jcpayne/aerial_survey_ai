@@ -7,10 +7,12 @@ import glob
 import random
 from PIL import Image
 #Note: called from the same envt as the notebook is using
-from trident_project.dev_packages.pascal_voc_writer.pascal_voc_writer import Writer
+from dev_packages.pascal_voc_writer.pascal_voc_writer import Writer
 from torchvision.transforms.functional import pad as tvpad #Used for padding
 #from pathlib import Path  #I put this in helpers instead
+from random import randrange
 from .helpers import *
+
 
 class Slicer(object):
     """
@@ -420,7 +422,7 @@ class Slicer(object):
                 #Get tile row and column
                 row,col = self.__get_rowcol_indexes(tiles,tile)
                 #breakpoint()
-                img_no_str = '{}{}{}'.format(im_filename,row,col) #produces a tile name like imgsourcefile[3][6]
+                tile_name = '{}{}{}'.format(im_filename,row,col) #produces a tile name like imgsourcefile[3][6]
                 tilepath = '{}{}{}'.format(im_filepath,row,col) #same but with a full path for the tile
                 #initialize a new annotation writer for this tile
                 #Initialize the writer with the full path so it correctly fills out the <filename>,<folder>,<path> elements.
@@ -502,20 +504,20 @@ class Slicer(object):
                     #addObject(self, name, xmin, ymin, xmax, ymax, pose='Unspecified', truncated=0, difficult=0)
                     voc_writer.addObject(obj[0], new_lbl[0], new_lbl[1], new_lbl[2], new_lbl[3],
                                          obj[1], obj[2], obj[3])
-                #Add filename to the "ignore" list if none of the bbox objects fall in it
+                #Add tile name to the "ignore" list if none of the bbox objects fall in it
                 if self.ignore_empty_tiles and (empty_count == len(objects)):
-                    self._ignored_files.append(img_no_str)
+                    self._ignored_files.append(tile_name)
                     #However we may still sample it
                     rd = random.random()
                     if rd < empty_sample:
                         #Save the tile (it's empty but we sample it)
-                        voc_writer.save('{}/{}.xml'.format(self.ANN_DST, img_no_str))
-                        tile_ids.append(img_no_str)
+                        voc_writer.save('{}/{}.xml'.format(self.ANN_DST, tile_name))
+                        tile_ids.append(tile_name)
                         img_no += 1
                 else:
                     #Save the tile (it contains objects of interest)
-                    voc_writer.save('{}/{}.xml'.format(self.ANN_DST, img_no_str))
-                    tile_ids.append(img_no_str)
+                    voc_writer.save('{}/{}.xml'.format(self.ANN_DST, tile_name))
+                    tile_ids.append(tile_name)
                     img_no += 1
             mapper[im_filename] = tile_ids #Add new item to mapper dict (key=filename,value=tile_ids)
 
@@ -693,112 +695,60 @@ class Slicer(object):
                                      obj[1], obj[2], obj[3])
             voc_writer.save('{}/{}.xml'.format(self.ANN_DST, an_filename))
 
-    def visualize_sliced_random(self, orig_ann_dir, orig_img_dir, tiled_img_dir, tiled_ann_dir):
+
+    #Choose a random line from a file (return the string but strip the line return)
+    def random_line(self, afile):
+        lines = afile.readlines()
+        if len(lines)>1:
+            rline = random.choice(lines[1:]) #exclude header
+        else:
+            raise SystemExit("mapper.csv file has no data (only header)")
+        return rline.strip()    
+    
+    def visualize_sliced_random(self, im_src, an_src, im_dst, an_dst):
         """Picks an image randomly and visualizes unsliced and sliced images using `matplotlib`.
 
         Parameters:
         ----------
-        map_dir : str, optional
-            /path/to/mapper/directory.
-            By default, looks for `mapper.csv` in image destination folder. 
-
+        map_dir : str, optional. /path/to/mapper/directory.
+            By default, looks for `mapper.csv` in original annotation folder (an_src). 
+        im_src: str. Directory of full-size images
+        an_src: str. Directory of full-size annotations
+        im_dst: str. Directory of tiled images
+        an_dst: str. Directory of tiled annotations.
         Returns:
         ----------
         None
             However, displays the final plots.
         """
-        map_path = orig_ann_dir + '/mapper.csv'
-
-        #Extract one record (orig_filename, list of tile_names) from the mapper.csv file at random
-        df = pd.read_csv(map_path)
-        breakpoint()
-        df[]
+        map_path = an_src + '/mapper.csv'
         
-        with open(map_path) as src_map:
-            read_csv = csv.reader(src_map, delimiter=',')
-            # Skip the header
-            next(read_csv, None)
-            #breakpoint()
+        map_path = an_src + '/mapper.csv'        
+        with open(map_path) as f:
+            line = self.random_line(f)
+            mapping = line.split(',')
+            maybe_fname = str(Path(mapping[0]).with_suffix('.jpg'))
+            src_fullpath = find_filename_case_insensitive(im_src, maybe_fname) #to deal with .jpg vs .JPG
+            src_name = mapping[0] #just the filename without extension
+            tile_files = mapping[1:]
+            print(src_name,tile_files)
+        
+            if len(tile_files) > 0:
+                tsize = self._tile_size
+                toverlap = self._tile_overlap
+                #Plot the original image, then the tiles
+                self.plot_image_boxes(im_src, an_src, src_name)
+                self.plot_tile_boxes(im_src, im_dst, an_dst, src_fullpath, tile_files,tsize,toverlap)
             
-            #TODO: I added this shit and it's worse than before
-            # It must be able to select a new row if the one it's on has no tiles;
-            # Also it must not run off the end of the file
-            ok = False
-            while not ok:
-                mapping = random.choice(list(read_csv))
-                #breakpoint()
-                src_fullpath = str(Path(Path(self.IMG_SRC)/mapping[0]).with_suffix('.jpg')) #the full path to the jpg image
-                src_name = mapping[0] #just the filename without extension
-                tile_files = mapping[1:]
-                if len(tile_files[0]) > 0:
-                    ok = True
-            
-            tsize = self._tile_size
-            toverlap = self._tile_overlap
-            
-            #Plot the original image, then the tiles
-            self.plot_image_boxes(self.IMG_SRC, self.ANN_SRC, src_name)
-            self.plot_tile_boxes(self.IMG_SRC,self.IMG_DST, self.ANN_DST, src_fullpath, src_name,tile_files,tsize,toverlap)
-            print(src_fullpath)
-
-            
-#     def visualize_sliced_random(self, map_dir=None, img_dir, ann_dir):
-#         """Picks an image randomly and visualizes unsliced and sliced images using `matplotlib`.
-
-#         Parameters:
-#         ----------
-#         map_dir : str, optional
-#             /path/to/mapper/directory.
-#             By default, looks for `mapper.csv` in image destination folder. 
-
-#         Returns:
-#         ----------
-#         None
-#             However, displays the final plots.
-#         """
-#         if not self.save_before_after_map and map_dir is None:
-#             print('No argument passed to `map_dir` and save_before_after_map is set False. \
-#                 Looking for `mapper.csv` in image destination folder.')
-#         mapping = ''
-
-#         if map_dir is None:
-#             map_path = self.ANN_DST + '/mapper.csv'
-#         else:
-#             map_path = map_dir + '/mapper.csv'
-
-#         #Extract one record (orig_filename, list of tile_names) from the mapper.csv file at random
-#         with open(map_path) as src_map:
-#             read_csv = csv.reader(src_map, delimiter=',')
-#             # Skip the header
-#             next(read_csv, None)
-#             ok = False
-#             while not ok:
-#                 mapping = random.choice(list(read_csv))
-#                 #breakpoint()
-#                 src_fullpath = str(Path(Path(self.IMG_SRC)/mapping[0]).with_suffix('.jpg')) #the full path to the jpg image
-#                 src_name = mapping[0] #just the filename without extension
-#                 tile_files = mapping[1:]
-#                 if len(tile_files[0]) > 0:
-#                     ok = True
-            
-#             tsize = self._tile_size
-#             toverlap = self._tile_overlap
-            
-#             #Plot the original image, then the tiles
-#             self.plot_image_boxes(self.IMG_SRC, self.ANN_SRC, src_name)
-#             self.plot_tile_boxes(self.IMG_SRC,self.IMG_DST, self.ANN_DST, src_fullpath, src_name,tile_files,tsize,toverlap)
 
     def visualize_resized_random(self):
         """Picks an image randomly and visualizes original and resized images using `matplotlib`
 
         Parameters:
-        ----------
-        None 
+          None 
 
-        Returns:
-        ----------
-        None
-            However, displays the final plots.
+        Returns: None
+        Side effect: Displays randomly-selected original image and resized versions of it.
         """
         #im_file = random.choice(list(glob.glob('{}/*'.format(self.IMG_SRC))))
         image_files = [str(x) for x in list(Path(self.IMG_SRC).rglob('*'))]
@@ -836,28 +786,24 @@ class Slicer(object):
         rownum = [n for (n,tpl) in enumerate(rows) if (tile[1],tile[3]) == tpl]
         return (rownum,colnum)
 
-    def plot_image_boxes(self,img_path, ann_path, src_name):
-        """Plots bounding boxes on images using `matplotlib`.
+    def plot_image_boxes(self,im_src, an_src, src_name):
+        """Plots bounding boxes on original images with original annotation using `matplotlib`.
         Parameters
-        ----------
-        img_path : str
-            /path/to/image/source/directory
-        ann_path : str
-            /path/to/annotation/source/directory
-        src_name: str 
-            image name without extension
-
-        Returns
-        ----------
-        None
+          im_src: str. Directory of full-size images
+          an_src: str. Directory of full-size annotations
+          src_name: str image name without extension
+          
+        Returns: None
+        Side effect: Plots original image with original annotations
         """    
         #Plot original image
         #Find the original xml file with bbox annotations for this image:
-        tree = ET.parse(ann_path + '/' + src_name + '.xml')
+        tree = ET.parse(an_src + '/' + src_name + '.xml')
         root = tree.getroot()
         #Find the image and convert to Numpy array
-        im = Image.open(img_path + '/' + src_name + '.jpg')
-        #im = Image.open(src_fullpath)
+        maybe_fname = src_name + '.jpg'
+        src_fullpath = find_filename_case_insensitive(im_src, maybe_fname) #to deal with .jpg vs .JPG
+        im = Image.open(src_fullpath)
         im = np.array(im, dtype=np.uint8)
 
         #list the original (un-tiled) bounding boxes.  Text has to be converted to float, then int, then put into a tuple
@@ -881,30 +827,28 @@ class Slicer(object):
             ax.add_patch(rect)
         plt.show()
 
-    def plot_tile_boxes(self,src_img_path,tileimg_path, ann_path, src_fullpath,src_name,tile_names,tile_size,tile_overlap):
+    def plot_tile_boxes(self,im_src,im_dst, an_dst, src_fullpath,tile_names,tile_size,tile_overlap):
         """
         Plots a matrix of tiles from a tiled image in correct row/column locations.
         Parameters
         ----------
-        src_img_path: /path/to/image/source/directory
-        tileimg_path: /path/to/tile_image/destination/directory
-        ann_path: /path/to/annotation/source/directory
-        src_fullpath: full path to original (un-tiled) file
-        src_name: filename only of original (un-tiled) file, without extension
-        tile_names: list of filenames for the tiles corresponding to the src_img_name file
-        tile_size: tuple(int,int).  Tile size in pixels.  Set in __slice_images().
-        tile_overlap: float.  Proportion of overlap between consecutive tiles.  
+          im_src: str. Directory of full-size images
+          im_dst: str. Directory of tiled images
+          an_dst: str. Directory of tiled annotations.
+          src_fullpath: full path to original (un-tiled) file
+          src_name: filename only of original (un-tiled) file, without extension
+          tile_names: list of filenames for the tiles corresponding to the src_img_name file
+          tile_size: tuple(int,int).  Tile size in pixels.  Set in __slice_images().
+          tile_overlap: float.  Proportion of overlap between consecutive tiles.  
         
-        Returns
-        ----------
-        None
+        Returns: None
+        Side-effect: Plots a matrix of tiles from a tiled image.
         """
         #Get tile matrix dimensions for this particular image
         #Image must be padded and then tiles calculated.
-        fn = src_fullpath
-        #BROKEN HERE
-        #breakpoint()
-        orig_size = Image.open(fn).size
+        orig_size = Image.open(src_fullpath).size
+        tile_size = tile_size
+        tile_overlap = tile_overlap
         padding = calc_padding(orig_size,tile_size,tile_overlap)
         img_size = (orig_size[0] + padding[2],orig_size[1] + padding[3])
         #We don't care about the tiles, just the side-effect of setting tilematrix_dim
@@ -917,14 +861,16 @@ class Slicer(object):
                 pos.append((i, j))
         fig, ax = plt.subplots(rows, cols, sharex='col',
                                sharey='row', figsize=(10, 7))
-        for file in tile_names:
+        for tile in tile_names:
             #Get the tile annotation
-            tree = ET.parse(ann_path + '/' + file + '.xml')
+            tree = ET.parse(an_dst + '/' + tile + '.xml')
             root = tree.getroot()
             #Get the tile image
-            im = Image.open(tileimg_path + '/' + file + '.jpg')
+            maybe_tilepath = tile + '.jpg'
+            tilepath = find_filename_case_insensitive(im_dst, maybe_tilepath) #to deal with .jpg vs .JPG
+            im = Image.open(tilepath)
             #Extract the tile row & col coordinates from the name        
-            clist = re.findall(r"\[([0-9]+)\]", file)
+            clist = re.findall(r"\[([0-9]+)\]", tile)
             coords = tuple([int(x) for x in clist])
             #Convert the image to an Numpy array
             im = np.array(im, dtype=np.uint8)

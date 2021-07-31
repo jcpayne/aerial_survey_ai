@@ -15,11 +15,28 @@ from math import sqrt, ceil, floor
 import re
 from pathlib import Path
 
-IMG_FORMAT_LIST = ['jpg', 'jpeg', 'png', 'tiff', 'exif', 'bmp']
+IMG_FORMAT_LIST = ['jpg','JPG', 'jpeg', 'png', 'tiff', 'exif', 'bmp']
 
 # Source : Sam Dobson
 # https://github.com/samdobson/image_slicer
 
+#From Paul Harter (https://stackoverflow.com/questions/8462449/python-case-insensitive-file-name)
+def find_filename_case_insensitive(fdir, filename):
+    """Given a filename, searches for an existing file of the same name but potential letter case differences.
+       I don't think it will handle wrong case in fdir itself.
+        Returns: the full path (str) with the correct case for the filename.
+    """
+    insensitive_path = filename.strip(os.path.sep)
+    parts = insensitive_path.split(os.path.sep)
+    next_name = parts[0]
+    for name in os.listdir(fdir):
+        if next_name.lower() == name.lower():
+            improved_path = os.path.join(fdir, name)
+            if len(parts) == 1:
+                return improved_path
+            else:
+                return find_sensitive_path(improved_path, os.path.sep.join(parts[1:]))
+    return None
 
 def calc_columns_rows(n):
     """Calculates the number of columns and rows required to divide an image
@@ -147,11 +164,16 @@ def validate_file_names(img_src, ann_src):
     imgs_filter = [True if x.split(
         '.')[-1].lower() in IMG_FORMAT_LIST else False for x in imgs]
     imgs = list(compress(imgs, imgs_filter))
-
-    imgs = [x.split('/')[-1].split('.')[-2] for x in imgs]
-    anns = [x.split('/')[-1].split('.')[-2] for x in anns]
-
-    if not (imgs == anns):
+    imgstems = [x.split('/')[-1].split('.')[-2] for x in imgs]
+    annstems = [x.split('/')[-1].split('.')[-2] for x in anns]
+    if not (imgstems == annstems):
+        diff = set(imgstems).difference(set(annstems))
+        print("Differences:")
+        print(diff)
+        print("Images")
+        [print(x) for x in diff if x in imgstems]
+        print("Annotations:")
+        [print(x) for x in diff if x in annstems]
         raise Exception(
             'Each image in `{}` must have its corresponding XML file in `{}` with the same file name.'.format(img_src, ann_src))
 
